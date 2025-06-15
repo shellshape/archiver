@@ -1,0 +1,27 @@
+[package]
+name = "archiver"
+version = "0.1.0"
+edition = "2024"
+authors = ["zekroTJA <riho@live.de>"]
+description = "Simple CLI app to archive media files into different directories by creation dates"
+readme = "README.md"
+license = "MIT"
+license-file = "LICENSE"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+anyhow = "1"
+chrono = "0.4.41"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+
+
+
+[profile.release]
+strip = true
+opt-level = "s"
+codegen-units = 1
+lto = true
+panic = "unwind"
