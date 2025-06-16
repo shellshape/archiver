@@ -20,6 +20,12 @@ pub enum Error {
     #[error("failed creating target directory: {0}")]
     CreatingTargetDirectory(anyhow::Error),
 
+    #[error("failed getting source file meta: {0}")]
+    GettingSourceFileMeta(io::Error),
+
+    #[error("failed getting source file meta: {0}")]
+    GettingTargetFileMeta(io::Error),
+
     #[error("failed opening source file: {0}")]
     OpeningSourceFile(io::Error),
 

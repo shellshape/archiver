@@ -10,10 +10,19 @@ pub struct DirTree {
 }
 
 impl DirTree {
+    pub fn new<P: Into<PathBuf>>(base_dir: P) -> Self {
+        Self {
+            base: base_dir.into(),
+            ..Default::default()
+        }
+    }
+
     pub fn mkdir_all<P: AsRef<Path>>(&mut self, dir: P) -> Result<()> {
         let mut elements = Vec::new();
 
-        for component in dir.as_ref().components() {
+        let stripped_dir = dir.as_ref().strip_prefix(&self.base)?;
+
+        for component in stripped_dir.components() {
             match component {
                 Component::Normal(os_str) => elements.push(os_str),
                 v => anyhow::bail!("invalid path component: {v:?}"),

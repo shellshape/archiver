@@ -19,14 +19,17 @@ struct Cli {
     source_dir: PathBuf,
     target_dir: PathBuf,
 
-    #[arg(long)]
+    #[arg(short, long)]
     mv: bool,
+
+    #[arg(short, long)]
+    force: bool,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let mut dir_tree = DirTree::default();
+    let mut dir_tree = DirTree::new(&cli.target_dir);
 
     let mut failed = 0;
 
@@ -50,12 +53,20 @@ fn main() -> Result<()> {
             entry.file_name().to_string_lossy()
         );
 
-        match process_entry(&mut dir_tree, &entry, &cli.target_dir, cli.mv) {
-            Ok(_) => {
+        match process_entry(&mut dir_tree, &entry, &cli.target_dir, cli.mv, cli.force) {
+            Ok(Status::Transferrred) => {
                 Term::stdout().clear_line().ok();
                 println!(
                     "\r{} {}",
                     "finished".bright_green(),
+                    entry.file_name().to_string_lossy()
+                );
+            }
+            Ok(Status::SkippedExists | Status::SkippedIsDir) => {
+                Term::stdout().clear_line().ok();
+                println!(
+                    "\r{} {}",
+                    "skipped".yellow(),
                     entry.file_name().to_string_lossy()
                 );
             }
@@ -79,15 +90,22 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+enum Status {
+    SkippedExists,
+    SkippedIsDir,
+    Transferrred,
+}
+
 fn process_entry(
     dir_tree: &mut DirTree,
     entry: &DirEntry,
     target_dir: impl AsRef<Path>,
     mv: bool,
-) -> Result<()> {
+    force: bool,
+) -> Result<Status> {
     let meta = entry.metadata().map_err(Error::Metadata)?;
     if meta.is_dir() {
-        return Ok(());
+        return Ok(Status::SkippedIsDir);
     }
 
     let mtime = DateTime::from_timestamp_micros(
@@ -102,21 +120,35 @@ fn process_entry(
     let dir = target_dir
         .as_ref()
         .join(mtime.year().to_string())
-        .join(mtime.month().to_string())
-        .join(mtime.day().to_string());
+        .join(format!("{:0>2}", mtime.month()))
+        .join(format!("{:0>2}", mtime.day()));
 
     dir_tree
         .mkdir_all(&dir)
         .map_err(Error::CreatingTargetDirectory)?;
 
+    let target_dir = dir.join(entry.file_name());
+    if !force && target_dir.exists() {
+        let source_meta = entry
+            .path()
+            .metadata()
+            .map_err(Error::GettingSourceFileMeta)?;
+        let target_meta = target_dir
+            .metadata()
+            .map_err(Error::GettingTargetFileMeta)?;
+
+        if source_meta.len() == target_meta.len() {
+            return Ok(Status::SkippedExists);
+        }
+    }
+
     let mut source_file = File::open(entry.path()).map_err(Error::OpeningSourceFile)?;
-    let mut target_file =
-        File::create(dir.join(entry.file_name())).map_err(Error::CreatingTargetFile)?;
+    let mut target_file = File::create(target_dir).map_err(Error::CreatingTargetFile)?;
     io::copy(&mut source_file, &mut target_file).map_err(Error::CopyingFileContents)?;
 
     if mv {
         fs::remove_file(entry.path()).map_err(Error::DeletingSourceFile)?;
     }
 
-    Ok(())
+    Ok(Status::Transferrred)
 }
