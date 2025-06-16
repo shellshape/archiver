@@ -6,7 +6,19 @@ Simple CLI app to archive media files into different directories by creation dat
 
 ```
 $ archiver --help
-< TODO: insert help here >
+Simple CLI app to archive media files into different directories by creation dates
+
+Usage: archiver.exe [OPTIONS] <SOURCE_DIR> <TARGET_DIR>
+
+Arguments:
+  <SOURCE_DIR>  Source directory
+  <TARGET_DIR>  Target directory
+
+Options:
+  -m, --mv       Move files instead of copying them
+  -f, --force    Overwrite existing files
+  -h, --help     Print help
+  -V, --version  Print version
 ```
 
 
