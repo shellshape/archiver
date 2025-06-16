@@ -16,14 +16,25 @@ mod errors;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
+    /// Source directory
     source_dir: PathBuf,
+
+    /// Target directory
     target_dir: PathBuf,
 
+    /// Move files instead of copying them
     #[arg(short, long)]
     mv: bool,
 
+    /// Overwrite existing files
     #[arg(short, long)]
     force: bool,
+}
+
+enum Status {
+    SkippedExists,
+    SkippedIsDir,
+    Transferrred,
 }
 
 fn main() -> Result<()> {
@@ -88,12 +99,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-enum Status {
-    SkippedExists,
-    SkippedIsDir,
-    Transferrred,
 }
 
 fn process_entry(
