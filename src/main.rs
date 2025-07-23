@@ -3,7 +3,7 @@ use crate::errors::Error;
 use anyhow::Result;
 use chrono::{DateTime, Datelike};
 use clap::{Parser, command};
-use console::Term;
+use indicatif::ProgressStyle;
 use std::fs::{self, DirEntry, File};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -12,6 +12,8 @@ use yansi::Paint;
 
 mod dirtree;
 mod errors;
+
+const PB_TEMPLATE: &str = "{spinner:.green} [{wide_bar:.cyan/dim}] {pos}/{len} ({per_sec}, {eta})";
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -42,60 +44,62 @@ fn main() -> Result<()> {
 
     let mut dir_tree = DirTree::new(&cli.target_dir);
 
-    let mut failed = 0;
+    let files = fs::read_dir(cli.source_dir)
+        .map_err(Error::ReadingSourceDir)?
+        .collect::<Result<Vec<_>, _>>()?;
 
-    for entry in fs::read_dir(cli.source_dir).map_err(Error::ReadingSourceDir)? {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(err) => {
-                println!(
-                    "{} failed getting directory entry: {}",
-                    "error:".red().bold(),
-                    err
-                );
-                failed += 1;
-                continue;
-            }
-        };
+    let pb_style = ProgressStyle::with_template(PB_TEMPLATE)
+        .expect("bar template")
+        .progress_chars("=>-");
+    let bar = indicatif::ProgressBar::new(files.len() as u64).with_style(pb_style);
 
-        print!(
-            "{} {} ...",
-            "processing".cyan(),
-            entry.file_name().to_string_lossy()
-        );
+    let mut failed = vec![];
+    let mut skipped = vec![];
 
-        match process_entry(&mut dir_tree, &entry, &cli.target_dir, cli.mv, cli.force) {
-            Ok(Status::Transferrred) => {
-                Term::stdout().clear_line().ok();
-                println!(
-                    "\r{} {}",
-                    "finished".bright_green(),
-                    entry.file_name().to_string_lossy()
-                );
-            }
-            Ok(Status::SkippedExists | Status::SkippedIsDir) => {
-                Term::stdout().clear_line().ok();
-                println!(
-                    "\r{} {}",
-                    "skipped".yellow(),
-                    entry.file_name().to_string_lossy()
-                );
-            }
-            Err(err) => {
-                Term::stdout().clear_line().ok();
-                println!(
-                    "\r{} {} : {}",
-                    "failed".red(),
-                    entry.file_name().to_string_lossy(),
-                    err
-                );
-                failed += 1;
-            }
+    for entry in bar.wrap_iter(files.iter()) {
+        match process_entry(&mut dir_tree, entry, &cli.target_dir, cli.mv, cli.force) {
+            Ok(Status::Transferrred) => (),
+            Ok(Status::SkippedExists | Status::SkippedIsDir) => skipped.push(entry.file_name()),
+            Err(err) => failed.push((entry.file_name(), err)),
         }
     }
 
-    if failed > 0 {
-        return Err(anyhow::anyhow!("Processing failed for {failed} files."));
+    bar.finish_and_clear();
+
+    let n_processed = files.len() - failed.len() - skipped.len();
+    println!(
+        "{} {}",
+        n_processed.to_string().green().bold(),
+        "files have been processed.".green()
+    );
+
+    if !skipped.is_empty() {
+        println!(
+            "{} {}",
+            skipped.len().to_string().yellow().bold(),
+            "files have been skipped.".yellow()
+        );
+    }
+
+    if !failed.is_empty() {
+        println!(
+            "{} {} {}",
+            "Failed processing for".red(),
+            failed.len().to_string().red().bold(),
+            "files:".red()
+        );
+
+        for (filename, err) in &failed {
+            println!(
+                "{}",
+                format_args!(" - {}: {}", filename.to_string_lossy(), err).red()
+            );
+        }
+
+        return Err(anyhow::anyhow!(
+            "Processing failed for {} files.",
+            failed.len()
+        ));
     }
 
     Ok(())

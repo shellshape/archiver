@@ -15,6 +15,7 @@ anyhow = "1"
 chrono = "0.4.41"
 clap = { version = "4", features = ["derive"] }
 console = "0.15.11"
+indicatif = "0.18.0"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2.0.12"
 yansi = "1.0.1"
