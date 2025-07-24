@@ -64,9 +64,6 @@ fn main() -> Result<()> {
         .progress_chars("=>-");
     let bar = indicatif::ProgressBar::new(files.len() as u64).with_style(pb_style);
 
-    // let mut failed = vec![];
-    // let mut skipped = vec![];
-
     let worker_pool = rayon::ThreadPoolBuilder::new()
         .num_threads(cli.workers.get())
         .build()?;
